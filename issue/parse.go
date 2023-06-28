@@ -96,7 +96,7 @@ func (impl eventHandler) parseAffectedVersion(s string) ([]string, error) {
 
 	av := sets.NewString(allVersion...)
 	if !av.HasAll(impl.cfg.MaintainVersion...) {
-		return nil, fmt.Errorf("受影响版本与当前维护版本不一致，当前维护版本:\n%s",
+		return nil, fmt.Errorf("受影响版本排查与当前维护版本不一致，当前维护版本:\n%s",
 			strings.Join(impl.cfg.MaintainVersion, ","),
 		)
 	}
