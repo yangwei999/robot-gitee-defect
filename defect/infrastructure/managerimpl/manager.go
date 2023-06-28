@@ -28,7 +28,8 @@ func (impl managerImpl) Save(defect domain.Defect) error {
 		return err
 	}
 
-	request, err := http.NewRequest(http.MethodPost, impl.cfg.Endpoint, bytes.NewReader(body))
+	url := impl.cfg.Endpoint + "/api/v1/defect"
+	request, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}

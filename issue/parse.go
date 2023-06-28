@@ -63,21 +63,26 @@ func (impl eventHandler) parse(body string) (map[string]string, error) {
 		return strings.Replace(str, "\t", "", -1)
 	}
 
-	info := make(map[string]string)
+	issueInfo := make(map[string]string)
 	for item, reg := range regexpOfItems {
 		match := reg.FindAllStringSubmatch(body, -1)
 		if len(match) < 1 || len(match[0]) < 2 {
-			return nil, fmt.Errorf("parse %s failed", item)
+			return nil, fmt.Errorf("%s 解析失败", item)
+		}
+
+		trimItemInfo := trim(match[0][1])
+		if trimItemInfo == "" {
+			return nil, fmt.Errorf("%s 不允许为空", item)
 		}
 
 		if _, ok := noTrimItem[item]; ok {
-			info[item] = match[0][1]
+			issueInfo[item] = match[0][1]
 		} else {
-			info[item] = trim(match[0][1])
+			issueInfo[item] = trimItemInfo
 		}
 	}
 
-	return info, nil
+	return issueInfo, nil
 }
 
 func (impl eventHandler) parseAffectedVersion(s string) ([]string, error) {
@@ -105,16 +110,22 @@ func (impl eventHandler) parseAffectedVersion(s string) ([]string, error) {
 }
 
 func (impl eventHandler) toCmd(e *sdk.IssueEvent) (cmd app.CmdToHandleDefect, err error) {
+	comment := func(content string) {
+		impl.cli.CreateIssueComment(e.Repository.Namespace,
+			e.Repository.Name, e.GetIssueNumber(), content,
+		)
+	}
+
 	issueInfo, err := impl.parse(e.Issue.Body)
 	if err != nil {
+		comment(err.Error())
+
 		return
 	}
 
 	affectedVersionSlice, err := impl.parseAffectedVersion(issueInfo[itemAffectedVersion])
 	if err != nil {
-		impl.cli.CreateIssueComment(e.Repository.Namespace,
-			e.Repository.Name, e.GetIssueNumber(), err.Error(),
-		)
+		comment(err.Error())
 
 		return
 	}
