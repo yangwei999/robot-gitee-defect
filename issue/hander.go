@@ -37,9 +37,37 @@ func (impl eventHandler) HandleIssueEvent(e *sdk.IssueEvent) error {
 		return nil
 	}
 
-	cmd, err := impl.toCmd(e)
+	comment := func(content string) error {
+		return impl.cli.CreateIssueComment(e.Repository.Namespace,
+			e.Repository.Name, e.GetIssueNumber(), content,
+		)
+	}
+
+	issueInfo, err := impl.parse(e.Issue.Body)
 	if err != nil {
-		return err
+		return comment(err.Error())
+	}
+
+	affectedVersionSlice, err := impl.parseAffectedVersion(issueInfo[itemAffectedVersion])
+	if err != nil {
+		return comment(err.Error())
+	}
+
+	cmd := app.CmdToHandleDefect{
+		IssueNumber:     e.GetIssueNumber(),
+		IssueOrg:        e.Repository.Namespace,
+		IssueRepo:       e.Repository.Name,
+		IssueStatus:     *e.State,
+		Kernel:          issueInfo[itemKernel],
+		Component:       issueInfo[itemComponents],
+		SystemVersion:   issueInfo[itemSystemVersion],
+		Description:     issueInfo[itemDescription],
+		ReferenceURL:    issueInfo[itemReferenceUrl],
+		GuidanceURL:     issueInfo[itemGuidanceUrl],
+		Influence:       issueInfo[itemInfluence],
+		SeverityLevel:   issueInfo[itemSeverityLevel],
+		AffectedVersion: affectedVersionSlice,
+		ABI:             issueInfo[itemAbi],
 	}
 
 	return impl.service.HandleDefect(cmd)
