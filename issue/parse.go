@@ -48,12 +48,19 @@ var (
 		itemAffectedVersion: regexpAffectedVersion,
 		itemAbi:             regexpAbi,
 	}
+
+	noTrimItem = map[string]bool{
+		itemDescription: true,
+		itemInfluence:   true,
+	}
 )
 
 func (impl eventHandler) parse(body string) (map[string]string, error) {
-	trim := func(s string) string {
-		t := strings.Replace(s, " ", "", -1)
-		return strings.Replace(t, "\n", "", -1)
+	trim := func(str string) string {
+		str = strings.Replace(str, " ", "", -1)
+		str = strings.Replace(str, "\n", "", -1)
+		str = strings.Replace(str, "\r", "", -1)
+		return strings.Replace(str, "\t", "", -1)
 	}
 
 	info := make(map[string]string)
@@ -63,7 +70,11 @@ func (impl eventHandler) parse(body string) (map[string]string, error) {
 			return nil, fmt.Errorf("parse %s failed", item)
 		}
 
-		info[item] = trim(match[0][1])
+		if _, ok := noTrimItem[item]; ok {
+			info[item] = match[0][1]
+		} else {
+			info[item] = trim(match[0][1])
+		}
 	}
 
 	return info, nil
@@ -85,8 +96,9 @@ func (impl eventHandler) parseAffectedVersion(s string) ([]string, error) {
 
 	av := sets.NewString(allVersion...)
 	if !av.HasAll(impl.cfg.MaintainVersion...) {
-		return nil, fmt.Errorf("affected version does not match MaintainVersion, "+
-			"MaintainVersion are %s", impl.cfg.MaintainVersion)
+		return nil, fmt.Errorf("受影响版本与当前维护版本不一致，当前维护版本:\n%s",
+			strings.Join(impl.cfg.MaintainVersion, ","),
+		)
 	}
 
 	return affectedVersion, nil

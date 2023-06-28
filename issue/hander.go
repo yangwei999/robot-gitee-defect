@@ -1,15 +1,11 @@
 package issue
 
 import (
-	"fmt"
-
 	sdk "github.com/opensourceways/go-gitee/gitee"
 	"github.com/opensourceways/robot-gitee-lib/client"
 
 	"github.com/opensourceways/robot-gitee-defect/defect/app"
 )
-
-const defectIssueType = "bug-manager"
 
 type EventHandler interface {
 	HandleIssueEvent(e *sdk.IssueEvent) error
@@ -37,8 +33,7 @@ type eventHandler struct {
 }
 
 func (impl eventHandler) HandleIssueEvent(e *sdk.IssueEvent) error {
-	fmt.Println(e.Issue.TypeName)
-	if e.Issue.TypeName != defectIssueType {
+	if e.Issue.TypeName != impl.cfg.IssueType {
 		return nil
 	}
 
@@ -47,8 +42,5 @@ func (impl eventHandler) HandleIssueEvent(e *sdk.IssueEvent) error {
 		return err
 	}
 
-	fmt.Println(cmd)
-	return nil
-
-	//return impl.service.HandleDefect(cmd)
+	return impl.service.HandleDefect(cmd)
 }

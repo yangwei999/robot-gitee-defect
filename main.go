@@ -70,13 +70,8 @@ func main() {
 }
 
 func run(cfg *config.Config) {
-	manager := managerimpl.NewManagerImpl(cfg.Manager)
-
-	service := app.NewDefectService(manager)
-
-	handler := issue.NewEventHandler(&cfg.Issue, service)
-
-	err := messageserver.Init(&cfg.MessageServer, handler)
+	service := app.NewDefectService(managerimpl.NewManagerImpl(cfg.Manager))
+	err := messageserver.Init(&cfg.MessageServer, issue.NewEventHandler(&cfg.Issue, service))
 	if err != nil {
 		logrus.Errorf("init message server failed, err:%s", err.Error())
 
