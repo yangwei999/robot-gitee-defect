@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/util/sets"
+
+	"github.com/opensourceways/robot-gitee-defect/utils"
 )
 
 const (
@@ -22,28 +24,30 @@ const (
 )
 
 var (
-	regexpKernel          = regexp.MustCompile(`(内核信息)[:：]([\s\S]*?)缺陷归属组件`)
-	regexpComponents      = regexp.MustCompile(`(缺陷归属组件)[:：]([\s\S]*?)组件版本`)
-	regexpSystemVersion   = regexp.MustCompile(`(缺陷归属的版本)[:：]([\s\S]*?)缺陷简述`)
-	regexpDescription     = regexp.MustCompile(`(缺陷简述)[:：]([\s\S]*?)缺陷创建时间`)
-	regexpReferenceURL    = regexp.MustCompile(`(缺陷详情参考链接)[:：]([\s\S]*?)缺陷分析指导链接`)
-	regexpGuidanceURL     = regexp.MustCompile(`(缺陷分析指导链接)[:：]([\s\S]*?)二、缺陷分析结构反馈`)
-	regexpInfluence       = regexp.MustCompile(`(影响性分析说明)[:：]([\s\S]*?)缺陷严重等级`)
-	regexpSeverityLevel   = regexp.MustCompile(`(缺陷严重等级)[:：]([\s\S]*?)受影响版本排查`)
-	regexpAffectedVersion = regexp.MustCompile(`(受影响版本排查)\(受影响/不受影响\)[:：]([\s\S]*?)abi变化`)
-	regexpAbi             = regexp.MustCompile(`(abi变化)\(受影响/不受影响\)[:：]([\s\S]*?)$`)
-
 	regexpOfItems = map[string]*regexp.Regexp{
-		itemKernel:          regexpKernel,
-		itemComponents:      regexpComponents,
-		itemSystemVersion:   regexpSystemVersion,
-		itemDescription:     regexpDescription,
-		itemReferenceUrl:    regexpReferenceURL,
-		itemGuidanceUrl:     regexpGuidanceURL,
-		itemInfluence:       regexpInfluence,
-		itemSeverityLevel:   regexpSeverityLevel,
-		itemAffectedVersion: regexpAffectedVersion,
-		itemAbi:             regexpAbi,
+		itemKernel:          regexp.MustCompile(`(内核信息)[:：]([\s\S]*?)缺陷归属组件`),
+		itemComponents:      regexp.MustCompile(`(缺陷归属组件)[:：]([\s\S]*?)组件版本`),
+		itemSystemVersion:   regexp.MustCompile(`(缺陷归属的版本)[:：]([\s\S]*?)缺陷简述`),
+		itemDescription:     regexp.MustCompile(`(缺陷简述)[:：]([\s\S]*?)缺陷创建时间`),
+		itemReferenceUrl:    regexp.MustCompile(`(缺陷详情参考链接)[:：]([\s\S]*?)缺陷分析指导链接`),
+		itemGuidanceUrl:     regexp.MustCompile(`(缺陷分析指导链接)[:：]([\s\S]*?)二、缺陷分析结构反馈`),
+		itemInfluence:       regexp.MustCompile(`(影响性分析说明)[:：]([\s\S]*?)缺陷严重等级`),
+		itemSeverityLevel:   regexp.MustCompile(`(缺陷严重等级)[:：]([\s\S]*?)受影响版本排查`),
+		itemAffectedVersion: regexp.MustCompile(`(受影响版本排查)\(受影响/不受影响\)[:：]([\s\S]*?)abi变化`),
+		itemAbi:             regexp.MustCompile(`(abi变化)\(受影响/不受影响\)[:：]([\s\S]*?)$`),
+	}
+
+	sortOfItems = []string{
+		itemKernel,
+		itemComponents,
+		itemSystemVersion,
+		itemDescription,
+		itemReferenceUrl,
+		itemGuidanceUrl,
+		itemInfluence,
+		itemSeverityLevel,
+		itemAffectedVersion,
+		itemAbi,
 	}
 
 	noTrimItem = map[string]bool{
@@ -53,21 +57,14 @@ var (
 )
 
 func (impl eventHandler) parse(body string) (map[string]string, error) {
-	trim := func(str string) string {
-		str = strings.Replace(str, " ", "", -1)
-		str = strings.Replace(str, "\n", "", -1)
-		str = strings.Replace(str, "\r", "", -1)
-		return strings.Replace(str, "\t", "", -1)
-	}
-
 	issueInfo := make(map[string]string)
-	for item, reg := range regexpOfItems {
-		match := reg.FindAllStringSubmatch(body, -1)
+	for _, item := range sortOfItems {
+		match := regexpOfItems[item].FindAllStringSubmatch(body, -1)
 		if len(match) < 1 || len(match[0]) < 3 {
 			return nil, fmt.Errorf("%s 解析失败", item)
 		}
 
-		trimItemInfo := trim(match[0][2])
+		trimItemInfo := utils.TrimString(match[0][2])
 		if trimItemInfo == "" {
 			return nil, fmt.Errorf("%s 不允许为空", match[0][1])
 		}
@@ -99,7 +96,7 @@ func (impl eventHandler) parseAffectedVersion(s string) ([]string, error) {
 	av := sets.NewString(allVersion...)
 	if !av.HasAll(impl.cfg.MaintainVersion...) {
 		return nil, fmt.Errorf("受影响版本排查与当前维护版本不一致，当前维护版本:\n%s",
-			strings.Join(impl.cfg.MaintainVersion, ","),
+			strings.Join(impl.cfg.MaintainVersion, "\n"),
 		)
 	}
 

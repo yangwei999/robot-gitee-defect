@@ -37,7 +37,7 @@ func (impl eventHandler) HandleIssueEvent(e *sdk.IssueEvent) error {
 		return nil
 	}
 
-	comment := func(content string) error {
+	commentIssue := func(content string) error {
 		return impl.cli.CreateIssueComment(e.Repository.Namespace,
 			e.Repository.Name, e.GetIssueNumber(), content,
 		)
@@ -45,12 +45,12 @@ func (impl eventHandler) HandleIssueEvent(e *sdk.IssueEvent) error {
 
 	issueInfo, err := impl.parse(e.Issue.Body)
 	if err != nil {
-		return comment(err.Error())
+		return commentIssue(err.Error())
 	}
 
 	affectedVersionSlice, err := impl.parseAffectedVersion(issueInfo[itemAffectedVersion])
 	if err != nil {
-		return comment(err.Error())
+		return commentIssue(err.Error())
 	}
 
 	cmd := app.CmdToHandleDefect{
@@ -70,5 +70,10 @@ func (impl eventHandler) HandleIssueEvent(e *sdk.IssueEvent) error {
 		ABI:             issueInfo[itemAbi],
 	}
 
-	return impl.service.HandleDefect(cmd)
+	err = impl.service.HandleDefect(cmd)
+	if err == nil {
+		return commentIssue("Your issue is accepted, thank you")
+	}
+
+	return err
 }
