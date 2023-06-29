@@ -1,14 +1,19 @@
 package issue
 
 import (
+	"strings"
+
 	sdk "github.com/opensourceways/go-gitee/gitee"
 	"github.com/opensourceways/robot-gitee-lib/client"
 
 	"github.com/opensourceways/robot-gitee-defect/defect/app"
 )
 
+const checkCmd = "/check-issue"
+
 type EventHandler interface {
 	HandleIssueEvent(e *sdk.IssueEvent) error
+	HandleNoteEvent(e *sdk.NoteEvent) error
 }
 
 type iClient interface {
@@ -33,17 +38,29 @@ type eventHandler struct {
 }
 
 func (impl eventHandler) HandleIssueEvent(e *sdk.IssueEvent) error {
-	if e.Issue.TypeName != impl.cfg.IssueType {
+	return impl.handIssue(e.Issue, e.Project)
+}
+
+func (impl eventHandler) HandleNoteEvent(e *sdk.NoteEvent) error {
+	if !e.IsIssue() || !strings.Contains(e.Comment.Body, checkCmd) {
+		return nil
+	}
+
+	return impl.handIssue(e.Issue, e.Project)
+}
+
+func (impl eventHandler) handIssue(issue *sdk.IssueHook, project *sdk.ProjectHook) error {
+	if issue.TypeName != impl.cfg.IssueType {
 		return nil
 	}
 
 	commentIssue := func(content string) error {
-		return impl.cli.CreateIssueComment(e.Repository.Namespace,
-			e.Repository.Name, e.GetIssueNumber(), content,
+		return impl.cli.CreateIssueComment(project.Namespace,
+			project.Name, issue.Number, content,
 		)
 	}
 
-	issueInfo, err := impl.parse(e.Issue.Body)
+	issueInfo, err := impl.parse(issue.Body)
 	if err != nil {
 		return commentIssue(err.Error())
 	}
@@ -54,10 +71,10 @@ func (impl eventHandler) HandleIssueEvent(e *sdk.IssueEvent) error {
 	}
 
 	cmd := app.CmdToHandleDefect{
-		IssueNumber:     e.GetIssueNumber(),
-		IssueOrg:        e.Repository.Namespace,
-		IssueRepo:       e.Repository.Name,
-		IssueStatus:     *e.State,
+		IssueNumber:     issue.Number,
+		IssueOrg:        project.Namespace,
+		IssueRepo:       project.Name,
+		IssueStatus:     issue.State,
 		Kernel:          issueInfo[itemKernel],
 		Component:       issueInfo[itemComponents],
 		SystemVersion:   issueInfo[itemSystemVersion],

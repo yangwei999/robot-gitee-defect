@@ -26,16 +26,26 @@ func (msg *giteeEventHandler) handle(payload []byte, header map[string]string) e
 		return fmt.Errorf("invalid msg, err:%s", err.Error())
 	}
 
-	if eventType != sdk.EventTypeIssue {
+	switch eventType {
+	case sdk.EventTypeIssue:
+		e, err := sdk.ConvertToIssueEvent(payload)
+		if err != nil {
+			return err
+		}
+
+		return msg.handler.HandleIssueEvent(&e)
+
+	case sdk.EventTypeNote:
+		e, err := sdk.ConvertToNoteEvent(payload)
+		if err != nil {
+			return err
+		}
+
+		return msg.handler.HandleNoteEvent(&e)
+
+	default:
 		return nil
 	}
-
-	e, err := sdk.ConvertToIssueEvent(payload)
-	if err != nil {
-		return err
-	}
-
-	return msg.handler.HandleIssueEvent(&e)
 }
 
 func (msg *giteeEventHandler) parseRequest(header map[string]string) (
