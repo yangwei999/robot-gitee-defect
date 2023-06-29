@@ -1,4 +1,4 @@
-FROM golang:1.18 as BUILDER
+FROM golang:1.18.8 as BUILDER
 
 MAINTAINER zengchen1024<chenzeng765@gmail.com>
 
