@@ -1,10 +1,15 @@
 package issue
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
 	"strings"
 
 	sdk "github.com/opensourceways/go-gitee/gitee"
 	"github.com/opensourceways/robot-gitee-lib/client"
+	"github.com/opensourceways/server-common-lib/utils"
 
 	"github.com/opensourceways/robot-gitee-defect/defect/app"
 )
@@ -65,9 +70,15 @@ func (impl eventHandler) handIssue(issue *sdk.IssueHook, project *sdk.ProjectHoo
 		return commentIssue(err.Error())
 	}
 
-	affectedVersionSlice, err := impl.parseAffectedVersion(issueInfo[itemAffectedVersion])
-	if err != nil {
-		return commentIssue(err.Error())
+	affectedVersionSlice, ok := issueInfo[itemAffectedVersion].([]string)
+	if !ok {
+		return errors.New("parse affected version error")
+	}
+
+	if issue.State == sdk.StatusClosed {
+		if err := impl.checkPR(project.Namespace, issue.Number, affectedVersionSlice); err != nil {
+			return commentIssue(err.Error())
+		}
 	}
 
 	cmd := app.CmdToHandleDefect{
@@ -75,16 +86,16 @@ func (impl eventHandler) handIssue(issue *sdk.IssueHook, project *sdk.ProjectHoo
 		IssueOrg:        project.Namespace,
 		IssueRepo:       project.Name,
 		IssueStatus:     issue.State,
-		Kernel:          issueInfo[itemKernel],
-		Component:       issueInfo[itemComponents],
-		SystemVersion:   issueInfo[itemSystemVersion],
-		Description:     issueInfo[itemDescription],
-		ReferenceURL:    issueInfo[itemReferenceUrl],
-		GuidanceURL:     issueInfo[itemGuidanceUrl],
-		Influence:       issueInfo[itemInfluence],
-		SeverityLevel:   issueInfo[itemSeverityLevel],
+		Kernel:          fmt.Sprint(issueInfo[itemKernel]),
+		Component:       fmt.Sprint(issueInfo[itemComponents]),
+		SystemVersion:   fmt.Sprint(issueInfo[itemSystemVersion]),
+		Description:     fmt.Sprint(issueInfo[itemDescription]),
+		ReferenceURL:    fmt.Sprint(issueInfo[itemReferenceUrl]),
+		GuidanceURL:     fmt.Sprint(issueInfo[itemGuidanceUrl]),
+		Influence:       fmt.Sprint(issueInfo[itemInfluence]),
+		SeverityLevel:   fmt.Sprint(issueInfo[itemSeverityLevel]),
 		AffectedVersion: affectedVersionSlice,
-		ABI:             issueInfo[itemAbi],
+		ABI:             fmt.Sprint(issueInfo[itemAbi]),
 	}
 
 	err = impl.service.HandleDefect(cmd)
@@ -93,4 +104,25 @@ func (impl eventHandler) handIssue(issue *sdk.IssueHook, project *sdk.ProjectHoo
 	}
 
 	return err
+}
+
+func (impl eventHandler) checkPR(owner, number string, versions []string) error {
+	endpoint := fmt.Sprintf("https://gitee.com/api/v5/repos/%v/issues/%v/pull_requests", owner, number)
+	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		return err
+	}
+
+	var prs []sdk.PullRequest
+	cli := utils.NewHttpClient(3)
+	bytes, _, err := cli.Download(req)
+	if err != nil {
+		return err
+	}
+
+	if err := json.Unmarshal(bytes, &prs); err != nil {
+		return err
+	}
+
+	return nil
 }

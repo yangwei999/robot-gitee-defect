@@ -10,6 +10,8 @@ import (
 	"github.com/opensourceways/robot-gitee-defect/utils"
 )
 
+type Info = map[string]interface{}
+
 const (
 	itemKernel          = "kernel"
 	itemComponents      = "components"
@@ -21,6 +23,11 @@ const (
 	itemSeverityLevel   = "severityLevel"
 	itemAffectedVersion = "affectedVersion"
 	itemAbi             = "abi"
+
+	severityLevelLow      = "Low"
+	severityLevelModerate = "Moderate"
+	severityLevelHigh     = "High"
+	severityLevelCritical = "Critical"
 )
 
 var (
@@ -54,10 +61,17 @@ var (
 		itemDescription: true,
 		itemInfluence:   true,
 	}
+
+	severityLevelMap = map[string]bool{
+		severityLevelLow:      true,
+		severityLevelModerate: true,
+		severityLevelHigh:     true,
+		severityLevelCritical: true,
+	}
 )
 
-func (impl eventHandler) parse(body string) (map[string]string, error) {
-	issueInfo := make(map[string]string)
+func (impl eventHandler) parse(body string) (issueInfo Info, err error) {
+	issueInfo = make(Info)
 	for _, item := range sortOfItems {
 		match := regexpOfItems[item].FindAllStringSubmatch(body, -1)
 		if len(match) < 1 || len(match[0]) < 3 {
@@ -76,7 +90,12 @@ func (impl eventHandler) parse(body string) (map[string]string, error) {
 		}
 	}
 
-	return issueInfo, nil
+	issueInfo[itemAffectedVersion], err = impl.parseAffectedVersion(fmt.Sprint(issueInfo[itemAffectedVersion]))
+	if err != nil {
+		return
+	}
+
+	return impl.check(issueInfo)
 }
 
 func (impl eventHandler) parseAffectedVersion(s string) ([]string, error) {
@@ -101,4 +120,23 @@ func (impl eventHandler) parseAffectedVersion(s string) ([]string, error) {
 	}
 
 	return affectedVersion, nil
+}
+
+func (impl eventHandler) check(items Info) (Info, error) {
+	for item, v := range items {
+		switch item {
+		case itemSeverityLevel:
+			if _, exist := severityLevelMap[fmt.Sprint(v)]; !exist {
+				return nil, fmt.Errorf("缺陷严重等级 %s 错误", v)
+			}
+
+		case itemSystemVersion:
+			maintainVersion := sets.NewString(impl.cfg.MaintainVersion...)
+			if !maintainVersion.Has(fmt.Sprint(v)) {
+				return nil, fmt.Errorf("缺陷归属版本 %s 错误", v)
+			}
+		}
+	}
+
+	return items, nil
 }
